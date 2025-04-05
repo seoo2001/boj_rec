@@ -47,27 +47,28 @@ def scrap_problem_per_page(db: Session, page: int):
         else:
             insert_problem(db, problem)
 
-# 전체 문제 크롤링
+# 전체 문제 크롤링 (빈 페이지가 나올 때까지)
 def scrap_problem(db: Session, time_interval: int = 1):
-    url = base_url + search_problem_url
-    querystring = {"query": " ", "page": "1"}
+    page = 1
 
-    try:
-        response = requests.get(url, headers=headers, params=querystring)
-        num_problem = json.loads(response.text).get("count", 0)
-    except:
-        print("API 연결 실패")
-        return
-
-    total_pages = (num_problem // 100) + (1 if num_problem % 100 > 0 else 0)
-
-    # total pages 문제 있음. 
-    # 이렇게 for문 구성하면 전체 page를 다 돌지 않음
-
-    for page in range(1, total_pages + 1):
+    while True:
         try:
-            print(f"[{page}/{total_pages}] 페이지 수집 중...")
+            print(f"[Page {page}] 문제 수집 중...")
+            url = base_url + search_problem_url
+            querystring = {"query": " ", "page": str(page)}
+            response = requests.get(url, headers=headers, params=querystring)
+            items = json.loads(response.text).get("items", [])
+
+            # 더 이상 문제 없으면 종료
+            if not items:
+                print("모든 문제 수집 완료!")
+                break
+
+            # 기존 로직 실행
             scrap_problem_per_page(db, page)
+
         except Exception as e:
             print(f"페이지 {page} 수집 실패: {e}")
+
+        page += 1
         time.sleep(time_interval)
