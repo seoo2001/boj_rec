@@ -55,10 +55,9 @@ def scrap_user_per_page(db: Session, page: int):
             insert_user(db, user)
 
 
-# page 737 부터 실패.
 
 def scrap_user(db: Session, time_interval: int = 1):
-    page = 736
+    page = 1
 
     while True:
         try:

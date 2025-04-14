@@ -3,3 +3,5 @@
 *.db
 */__pycache__/
 ./data/*
+
+api_test.py
