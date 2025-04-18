@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from scraper.entity import Base  # Problems 모델이 여기에 있음
+from scraper.entity import Base
 from scraper.scrap import scrap_user, scrap_problem, scrap_interaction
 import argparse
 

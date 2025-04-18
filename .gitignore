@@ -9,3 +9,5 @@ api_test.py
 */EDA.ipynb
 
 *.csv
+
+temp/*

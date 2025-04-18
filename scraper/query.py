@@ -1,6 +1,6 @@
 # query.py
 from sqlalchemy.orm import Session
-from entity import Problems, Users
+from scraper.entity import Problems, Users
 
 # 문제 ID로 문제 검색
 def get_problem_by_problem_id(db: Session, problem_id: int):
