@@ -11,3 +11,9 @@ api_test.py
 *.csv
 
 temp/*
+
+_pre/*
+
+*.txt
+
+.env
