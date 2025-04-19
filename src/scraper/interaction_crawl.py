@@ -131,7 +131,7 @@ def process_single_user(user, problem_mapper, db):
         time.sleep(random.uniform(5.0, 10.0))
         return 0
 
-def parallel_crawl_interaction(db: Session, max_workers=10):
+def parallel_crawl_interaction(db: Session, max_workers=50):
     """
     ThreadPoolExecutor를 사용하여 여러 사용자를 병렬로 처리
     
