@@ -35,7 +35,7 @@ class CF(nn.Module):
         return torch.sigmoid(predictions)
     
     @torch.no_grad()
-    def recommend(self, dataset: CFDataset, handle: str, top_k: int = 10) -> List[int]:
+    def recommend(self, dataset: CFDataset, handle: str, top_k: int = 10, device: str = 'cpu') -> List[int]:
         """
         사용자 handle을 받아서 추천할 문제의 problem_id 목록을 반환합니다.
         
@@ -43,6 +43,7 @@ class CF(nn.Module):
             dataset: CFDataset 인스턴스
             handle: 사용자의 백준 handle
             top_k: 추천할 문제 개수
+            device: 모델이 있는 device
             
         Returns:
             추천된 문제들의 problem_id 리스트
@@ -52,11 +53,11 @@ class CF(nn.Module):
         if user_id is None:  # Unknown user
             return []
             
-        # 사용자 임베딩 가져오기
-        user_embedding = self.user_embedding(torch.tensor([user_id]))
+        # 사용자 임베딩 가져오기 (device에 맞춰서)
+        user_embedding = self.user_embedding(torch.tensor([user_id], device=device))
         
-        # 모든 문제와의 유사도 계산
-        all_item_embeddings = self.item_embedding.weight
+        # 모든 문제와의 유사도 계산 (device에 맞춰서)
+        all_item_embeddings = self.item_embedding.weight.to(device)
         scores = torch.matmul(user_embedding, all_item_embeddings.t()).squeeze()
         
         # Top-K 문제의 인덱스 가져오기

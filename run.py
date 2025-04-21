@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 import torch.optim as optim
 from src.model.CF import CF
 from data.dataset import CFDataset
-import numpy as np
+from src.utils.metrics import calculate_ndcg_tensor, calculate_entropy_tensor
 from typing import List, Dict
 import os
 from src.data.preprocess import create_processed_data
@@ -40,23 +40,80 @@ def train_epoch(model: CF,
 
 def evaluate(model: CF, 
             test_loader: DataLoader,
-            device: str = 'cpu') -> float:
-    """Evaluate model"""
+            dataset: CFDataset,
+            device: str = 'cpu',
+            k: int = 10) -> Dict[str, float]:
+    """
+    Evaluate model using multiple metrics
+    
+    Args:
+        model: CF model
+        test_loader: Test data loader
+        dataset: Dataset instance for getting actual user interactions
+        device: Device to run inference on
+        k: Top-K items for NDCG calculation
+        
+    Returns:
+        Dictionary containing different evaluation metrics
+    """
     model.eval()
     total_loss = 0
+    all_recommendations = []
+    all_actual_interactions = []
     
     with torch.no_grad():
         for user_indices, item_indices in test_loader:
             user_indices = user_indices.to(device)
             item_indices = item_indices.to(device)
             
+            # Calculate BCE loss
             predictions = model(user_indices, item_indices)
             labels = torch.ones_like(predictions)
-            
             loss = torch.nn.functional.binary_cross_entropy(predictions, labels)
             total_loss += loss.item()
+            
+            # Get recommendations and actual interactions for unique users in batch
+            unique_users = user_indices.unique()
+            batch_recommendations = []
+            batch_interactions = []
+            
+            # Get recommendations in parallel for the batch
+            for user_idx in unique_users:
+                user_handle = dataset.get_handle_from_id(user_idx.item())
+                if user_handle:
+                    recommendations = model.recommend(dataset, user_handle, k, device)
+                    actual_problems = dataset.get_user_interactions(user_idx.item())
+                    if recommendations:
+                        batch_recommendations.append(recommendations)
+                        batch_interactions.append(actual_problems)
+            
+            if batch_recommendations:
+                all_recommendations.extend(batch_recommendations)
+                all_actual_interactions.extend(batch_interactions)
     
-    return total_loss / len(test_loader)
+    # Calculate metrics using tensor operations
+    if all_recommendations:
+        # Prepare tensors for NDCG calculation
+        max_actual_len = max(len(inter) for inter in all_actual_interactions)
+        padded_actual = [inter + [0] * (max_actual_len - len(inter)) for inter in all_actual_interactions]
+        
+        recommendations_tensor = torch.tensor([rec[:k] for rec in all_recommendations])
+        actual_tensor = torch.tensor(padded_actual)
+        
+        # Calculate NDCG and entropy using tensor operations
+        ndcg = calculate_ndcg_tensor(recommendations_tensor, actual_tensor, k)
+        diversity = calculate_entropy_tensor(recommendations_tensor)
+    else:
+        ndcg = 0.0
+        diversity = 0.0
+    
+    avg_loss = total_loss / len(test_loader)
+    
+    return {
+        'loss': avg_loss,
+        f'ndcg@{k}': ndcg,
+        'diversity': diversity
+    }
 
 def get_recommendations(model: CF,
                        dataset: CFDataset,
@@ -79,7 +136,7 @@ def get_recommendations(model: CF,
     recommendations = {}
     
     for handle in handles:
-        rec_problems = model.recommend(dataset, handle, top_k)
+        rec_problems = model.recommend(dataset, handle, top_k, device)
         if rec_problems:  # Only add if we got recommendations
             recommendations[handle] = rec_problems
     
@@ -132,9 +189,10 @@ def main():
     print("Starting training...")
     for epoch in range(EPOCHS):
         train_loss = train_epoch(model, train_loader, optimizer, DEVICE)
-        test_loss = evaluate(model, test_loader, DEVICE)
+        metrics = evaluate(model, test_loader, train_dataset, DEVICE)
         print(f"Epoch {epoch+1}/{EPOCHS}:")
-        print(f"Train Loss: {train_loss:.4f}, Test Loss: {test_loss:.4f}")
+        print(f"Train Loss: {train_loss:.4f}, Test Loss: {metrics['loss']:.4f}")
+        print(f"NDCG@10: {metrics['ndcg@10']:.4f}, Diversity: {metrics['diversity']:.4f}")
     
     # Example: Get recommendations for sample users
     print("\nGetting recommendations...")
